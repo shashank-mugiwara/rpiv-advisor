@@ -1,6 +1,6 @@
 {
 	"name": "@shashank-mugiwara/rpiv-advisor",
-	"version": "2.2.0-fork.2",
+	"version": "2.2.0-fork.3",
 	"description": "Pi extension. A second opinion the model can request from a stronger reviewer model before it acts. [fork: advisor runs as a tool-using subagent via pi-subagents RPC, falls back to toolless completeSimple]",
 	"keywords": [
 		"pi-package",
@@ -48,8 +48,8 @@
 		"typebox": "^1.1.24"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-ai": "*",
-		"@earendil-works/pi-coding-agent": "*",
-		"@earendil-works/pi-tui": "*"
+		"@earendil-works/pi-ai": ">=0.83.0",
+		"@earendil-works/pi-coding-agent": ">=0.83.0",
+		"@earendil-works/pi-tui": ">=0.83.0"
 	}
 }

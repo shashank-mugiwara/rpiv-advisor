@@ -2,6 +2,13 @@
 
 Fork of [`@juicesharp/rpiv-advisor`](https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-advisor) v2.2.0.
 
+## v2.2.0-fork.3 (2026-08-07)
+
+### Changes
+
+- Checked upstream `@juicesharp/rpiv-advisor` on npm — still 2.2.0, same base this fork was cut from. No upstream diff to merge.
+- `package.json` `peerDependencies` pinned from `"*"` to `">=0.83.0"` for `@earendil-works/pi-ai`/`pi-coding-agent`/`pi-tui`, matching the installed pi-coding-agent version (`pi --version` → 0.83.0; all three peer packages resolve to 0.83.0 in `node_modules`).
+
 ## v2.2.0-fork.2 (2026-08-07)
 
 ### Changes
