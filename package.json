@@ -1,0 +1,55 @@
+{
+	"name": "@shashank-mugiwara/rpiv-advisor",
+	"version": "2.2.0-fork.1",
+	"description": "Pi extension. A second opinion the model can request from a stronger reviewer model before it acts. [fork: customizations pending]",
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"rpiv",
+		"advisor"
+	],
+	"type": "module",
+	"license": "MIT",
+	"author": "juicesharp",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/shashank-mugiwara/rpiv-advisor.git"
+	},
+	"homepage": "https://github.com/shashank-mugiwara/rpiv-advisor#readme",
+	"bugs": {
+		"url": "https://github.com/shashank-mugiwara/rpiv-advisor/issues"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"test": "vitest run"
+	},
+	"files": [
+		"index.ts",
+		"advisor/",
+		"advisor-ui.ts",
+		"fuzzy.ts",
+		"prompts/",
+		"docs/",
+		"!docs/*.png",
+		"!docs/*.jpg",
+		"!docs/*.svg",
+		"README.md",
+		"LICENSE"
+	],
+	"pi": {
+		"extensions": [
+			"./index.ts"
+		]
+	},
+	"dependencies": {
+		"@juicesharp/rpiv-config": "^2.2.0",
+		"typebox": "^1.1.24"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*"
+	}
+}
