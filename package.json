@@ -1,7 +1,7 @@
 {
 	"name": "@shashank-mugiwara/rpiv-advisor",
-	"version": "2.2.0-fork.1",
-	"description": "Pi extension. A second opinion the model can request from a stronger reviewer model before it acts. [fork: customizations pending]",
+	"version": "2.2.0-fork.2",
+	"description": "Pi extension. A second opinion the model can request from a stronger reviewer model before it acts. [fork: advisor runs as a tool-using subagent via pi-subagents RPC, falls back to toolless completeSimple]",
 	"keywords": [
 		"pi-package",
 		"pi-extension",

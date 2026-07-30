@@ -34,6 +34,8 @@ import {
 import { getRuntimeCompleteSimple, loadCompleteSimple } from "./pi-compat.js";
 import { ADVISOR_SYSTEM_PROMPT } from "./prompt.js";
 import { getAdvisorEffort, getAdvisorModel } from "./state.js";
+import { isSubagentsAvailable, runAdvisorSubagent } from "./subagent.js";
+import { renderTranscript } from "./transcript.js";
 
 interface AdvisorDetails {
 	advisorModel?: string;
@@ -127,6 +129,20 @@ export async function executeAdvisor(
 		content: [{ type: "text", text: msgConsulting(advisorLabel, effort) }],
 		details: { advisorModel: advisorLabel, effort },
 	});
+
+	// Prefer the tool-using advisor subagent (fork addition) when pi-subagents
+	// is loaded in this session — it can verify claims against real files/
+	// commands instead of trusting the transcript. Falls back to the original
+	// toolless completeSimple path below when unavailable, so the fork degrades
+	// to upstream behavior rather than hard-erroring.
+	if (await isSubagentsAvailable(pi.events)) {
+		const prompt = renderTranscript(messages);
+		const subResult = await runAdvisorSubagent(pi.events, prompt, signal);
+		if ("errorMessage" in subResult) {
+			return buildErrorResult(advisorLabel, effort, errCallFailed(subResult.errorMessage), subResult.errorMessage);
+		}
+		return buildAdvisorResult({ text: subResult.text, effort, advisorLabel });
+	}
 
 	try {
 		// Prefer Pi's auth-aware runtime facade. Unlike the global compatibility
