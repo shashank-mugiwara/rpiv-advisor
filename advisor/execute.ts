@@ -30,11 +30,12 @@ import {
 	errNoApiKey,
 	errNoApiKeyDetail,
 	msgConsulting,
+	SUBAGENT_ADVISOR_LABEL,
 } from "./messages.js";
 import { getRuntimeCompleteSimple, loadCompleteSimple } from "./pi-compat.js";
 import { ADVISOR_SYSTEM_PROMPT } from "./prompt.js";
 import { getAdvisorEffort, getAdvisorModel } from "./state.js";
-import { isSubagentsAvailable, runAdvisorSubagent } from "./subagent.js";
+import { isSubagentsAvailable, runAdvisorSubagent, type SubagentUsage } from "./subagent.js";
 import { renderTranscript } from "./transcript.js";
 
 interface AdvisorDetails {
@@ -43,6 +44,10 @@ interface AdvisorDetails {
 	usage?: Usage;
 	stopReason?: StopReason;
 	errorMessage?: string;
+	/** Set only on the subagent path: the advisor agent's real lifetime spend
+	 *  (pi-subagents' terminal-event accounting), which `usage` cannot carry —
+	 *  `Usage` is a single completion's ledger with cost breakdowns we don't have. */
+	subagent?: SubagentUsage;
 }
 
 // Extract the advisor's text content from a completeSimple response: concatenate
@@ -69,12 +74,14 @@ function buildAdvisorResult(opts: {
 	usage?: Usage;
 	stopReason?: StopReason;
 	errorMessage?: string;
+	subagent?: SubagentUsage;
 }): AgentToolResult<AdvisorDetails> {
 	const details: AdvisorDetails = { effort: opts.effort };
 	if (opts.advisorLabel !== undefined) details.advisorModel = opts.advisorLabel;
 	if (opts.usage !== undefined) details.usage = opts.usage;
 	if (opts.stopReason !== undefined) details.stopReason = opts.stopReason;
 	if (opts.errorMessage !== undefined) details.errorMessage = opts.errorMessage;
+	if (opts.subagent !== undefined) details.subagent = opts.subagent;
 	return { content: [{ type: "text", text: opts.text }], details };
 }
 
@@ -103,14 +110,6 @@ export async function executeAdvisor(
 	}
 	const advisorLabel = `${advisor.provider}:${advisor.id}`;
 
-	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(advisor);
-	if (!auth.ok) {
-		return buildErrorResult(advisorLabel, effort, errMisconfigured(advisorLabel, auth.error), auth.error);
-	}
-	if (!auth.apiKey) {
-		return buildErrorResult(advisorLabel, effort, errNoApiKey(advisorLabel), errNoApiKeyDetail(advisor.provider));
-	}
-
 	// Live-read every call — advisor runs mid-turn so any message_end snapshot
 	// is always one turn stale. buildSessionContext() preserves Pi's resolved
 	// LLM context, including compaction summaries and branch summaries, instead
@@ -125,24 +124,61 @@ export async function executeAdvisor(
 	const inventoryMessage = getInventoryMessage(pi.getAllTools());
 	const messages: Message[] = inventoryMessage ? [inventoryMessage, ...branchMessages] : branchMessages;
 
+	// Prefer the tool-using advisor subagent (fork addition) when pi-subagents
+	// is loaded in this session — it can verify claims against real files/
+	// commands instead of trusting the transcript. Checked BEFORE the auth
+	// preflight: the subagent runs its own model from agents/advisor.md, so
+	// credentials for the configured completeSimple model are irrelevant here —
+	// a broken login for that provider must not block a consult that never uses
+	// it. Falls back to the original toolless completeSimple path below when
+	// unavailable, so the fork degrades to upstream behavior.
+	if (await isSubagentsAvailable(pi.events)) {
+		// Effort is deliberately absent from this path's envelopes: the
+		// configured completeSimple effort is not what the subagent runs with
+		// (its thinking level lives in agents/advisor.md).
+		onUpdate?.({
+			content: [{ type: "text", text: msgConsulting(SUBAGENT_ADVISOR_LABEL, undefined) }],
+			details: { advisorModel: SUBAGENT_ADVISOR_LABEL },
+		});
+		const prompt = renderTranscript(messages);
+		const subResult = await runAdvisorSubagent(pi.events, prompt, signal);
+		if ("errorMessage" in subResult) {
+			return buildErrorResult(SUBAGENT_ADVISOR_LABEL, undefined, errCallFailed(subResult.errorMessage), subResult.errorMessage);
+		}
+		const subagent: SubagentUsage = {
+			tokens: subResult.tokens,
+			toolUses: subResult.toolUses,
+			durationMs: subResult.durationMs,
+		};
+		// No R6.4 retry here, unlike the completeSimple path: an agent that ran
+		// to completion and produced no result text is a real failure, not the
+		// transient-empty class — and "retrying" would respawn a multi-minute,
+		// tool-using agent. Surface it as the empty-response error instead of
+		// handing the executor a silently blank result.
+		if (!subResult.text.trim()) {
+			return buildAdvisorResult({
+				text: ERR_EMPTY_RESPONSE,
+				effort: undefined,
+				advisorLabel: SUBAGENT_ADVISOR_LABEL,
+				errorMessage: ERR_EMPTY_RESPONSE_DETAIL,
+				subagent,
+			});
+		}
+		return buildAdvisorResult({ text: subResult.text, effort: undefined, advisorLabel: SUBAGENT_ADVISOR_LABEL, subagent });
+	}
+
+	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(advisor);
+	if (!auth.ok) {
+		return buildErrorResult(advisorLabel, effort, errMisconfigured(advisorLabel, auth.error), auth.error);
+	}
+	if (!auth.apiKey) {
+		return buildErrorResult(advisorLabel, effort, errNoApiKey(advisorLabel), errNoApiKeyDetail(advisor.provider));
+	}
+
 	onUpdate?.({
 		content: [{ type: "text", text: msgConsulting(advisorLabel, effort) }],
 		details: { advisorModel: advisorLabel, effort },
 	});
-
-	// Prefer the tool-using advisor subagent (fork addition) when pi-subagents
-	// is loaded in this session — it can verify claims against real files/
-	// commands instead of trusting the transcript. Falls back to the original
-	// toolless completeSimple path below when unavailable, so the fork degrades
-	// to upstream behavior rather than hard-erroring.
-	if (await isSubagentsAvailable(pi.events)) {
-		const prompt = renderTranscript(messages);
-		const subResult = await runAdvisorSubagent(pi.events, prompt, signal);
-		if ("errorMessage" in subResult) {
-			return buildErrorResult(advisorLabel, effort, errCallFailed(subResult.errorMessage), subResult.errorMessage);
-		}
-		return buildAdvisorResult({ text: subResult.text, effort, advisorLabel });
-	}
 
 	try {
 		// Prefer Pi's auth-aware runtime facade. Unlike the global compatibility

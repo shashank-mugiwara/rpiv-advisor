@@ -2,6 +2,46 @@
 
 Fork of [`@juicesharp/rpiv-advisor`](https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-advisor) v2.2.0.
 
+## v2.2.0-fork.4 (2026-07-31)
+
+### Changes
+
+Hardening of the subagent path, from an external audit of fork.3:
+
+- **Bounded waits** (`advisor/subagent.ts`) — the spawn reply now times out after 5s and
+  the completion wait after 15 minutes (watchdog emits `subagents:rpc:stop` and surfaces
+  an error). Previously both promises were unbounded: a pi-subagents reload or manager
+  crash mid-consult hung the executor's `advisor` tool call forever. The abort signal is
+  now also honored during the spawn phase, not just the wait phase.
+- **Empty results surface as errors** (`advisor/execute.ts`) — a subagent that completes
+  with no result text now returns the `ERR_EMPTY_RESPONSE` envelope instead of a silently
+  blank tool result. Deliberately no R6.4-style retry on this path: respawning a full
+  tool-using agent is not a cheap second attempt.
+- **Auth preflight skipped on the subagent path** (`advisor/execute.ts`) — the subagent
+  runs its own model from `agents/advisor.md`, so credentials for the configured
+  completeSimple model are checked only on the fallback path. A broken login for a
+  provider the consult never uses no longer blocks it.
+- **Honest attribution + usage accounting** (`advisor/execute.ts`, `advisor/messages.ts`) —
+  subagent results are labeled `subagent:advisor` instead of the configured (never-run)
+  completeSimple model, and the terminal event's lifetime accounting (`tokens`,
+  `toolUses`, `durationMs`) is recorded in `details.subagent`, so per-consult spend is
+  visible in the session record.
+- **Guidance retuned for subagent economics** (`advisor/register.ts`) — the default
+  promptGuidelines told the executor to consult at least twice per multi-step task,
+  cadence written for the cheap toolless call. They now lead with the cost ("a full
+  tool-using reviewer agent — minutes of wall clock"), scope the approach-consult to
+  multi-step/high-stakes work, and scope the done-consult to risky or
+  uncertainly-verified work. The description drops "stronger reviewer model" (the
+  executor and advisor can be the same model — the value is fresh context plus
+  tool-grounded verification, plus memory-palace lessons).
+- **`agents/advisor.md` now versioned here** — the agent definition the subagent spawns
+  as was previously only a live file at `~/.pi/agent/agents/advisor.md`, invisible to the
+  git pin; a fresh machine silently degraded to the fallback path. Install by copying it
+  to `~/.pi/agent/agents/advisor.md`. The prompt also gained an "Institutional memory"
+  section: the advisor now searches the shared memory palace (mempalace CLI, including
+  `--topic lessons`) and reads the Obsidian vault's per-project `Rules.md`/`Tasks.md`
+  before answering, and cites the lesson/rule that shaped a verdict.
+
 ## v2.2.0-fork.3 (2026-08-07)
 
 ### Changes

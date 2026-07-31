@@ -9,6 +9,11 @@ import type { ThinkingLevel } from "@earendil-works/pi-ai";
 // Tool identity
 export const ADVISOR_TOOL_NAME = "advisor";
 export const TOOL_LABEL = "Advisor";
+// Label for results produced by the tool-using subagent path (fork). The real
+// model is pinned in ~/.pi/agent/agents/advisor.md, which this package cannot
+// read — so the label names the mechanism rather than mislabeling the result
+// with the configured completeSimple model that never ran.
+export const SUBAGENT_ADVISOR_LABEL = "subagent:advisor";
 
 // Selector sentinels — double-underscore form is collision-proof against real provider:id keys
 export const NO_ADVISOR_VALUE = "__no_advisor__";
